@@ -1,0 +1,10 @@
+[package]
+name = "csc411"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+
+[dependencies]
+# This is a math library, used mostly for vector
+glam = "0.29.2"
