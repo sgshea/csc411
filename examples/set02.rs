@@ -1,10 +1,7 @@
-use std::{
-    collections::{BinaryHeap, HashMap},
-    fmt::Display,
-};
+use std::{collections::HashMap, fmt::Display};
 
 use csc411::{
-    action::{Action, Direction},
+    action::Direction,
     agent::Agent,
     environment::{Environment, EnvironmentState},
     map::{Map, Tile},
@@ -19,13 +16,14 @@ struct PositionNode {
 
 impl PartialOrd for PositionNode {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cost.partial_cmp(&other.cost)?.reverse())
+        Some(self.cmp(other))
     }
 }
 
+// Ordering is reversed (lowest last)
 impl Ord for PositionNode {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.cost.partial_cmp(&other.cost).unwrap().reverse()
+        other.cost.cmp(&self.cost)
     }
 }
 
@@ -33,14 +31,14 @@ struct AStar {
     came_from: HashMap<IVec2, IVec2>,
     cost_so_far: HashMap<IVec2, i32>,
 
-    frontier: BinaryHeap<PositionNode>,
+    frontier: Vec<PositionNode>,
 }
 
 impl AStar {
     fn new(start: IVec2) -> AStar {
         let mut cost_so_far = HashMap::new();
         cost_so_far.insert(start, 0);
-        let mut frontier = BinaryHeap::new();
+        let mut frontier = Vec::new();
         frontier.push(PositionNode {
             position: start,
             cost: 0,
@@ -59,10 +57,10 @@ impl AStar {
                 return None;
             }
 
-            let cost = self.cost_so_far[&current.position] + 1;
             // Get neighbors
             let neighbors = map.get_neighbors(&current.position);
             for (neighbor, (_direction, _tile)) in &neighbors {
+                let cost = self.cost_so_far[&current.position] + 1;
                 if !self.cost_so_far.contains_key(&neighbor) || cost < self.cost_so_far[&neighbor] {
                     self.cost_so_far.insert(*neighbor, cost);
                     let priority = cost + manhattan_distance(&neighbor, goal);
@@ -76,7 +74,8 @@ impl AStar {
 
             // Choose least cost
             if !self.frontier.is_empty() {
-                let next = self.frontier.pop()?;
+                self.frontier.sort(); // Must make sure the frontier is sorted by cost
+                let next = self.frontier.last()?;
                 // Get from neighbors map and return
                 let (direction, _tile) = neighbors.get(&next.position)?;
                 return Some(*direction);
@@ -88,7 +87,7 @@ impl AStar {
 }
 
 fn manhattan_distance(a: &IVec2, b: &IVec2) -> i32 {
-    ((b.x - a.x).abs() + (b.y - a.y).abs()) as i32
+    ((a.x - b.x).abs() + (a.y - b.y).abs()) as i32
 }
 
 struct Robot {
@@ -132,19 +131,10 @@ impl Environment for SimulationEnvironment {
     fn run(&mut self) {
         self.turn_count += 1;
 
-        let action = match self.astar.run(&self.map, &self.goal_position) {
-            Some(direction) => Action::Move { direction },
-            None => Action::Wait,
+        match self.astar.run(&self.map, &self.goal_position) {
+            Some(direction) => self.robot.position += direction.to_ivec2(),
+            None => {}
         };
-        match action {
-            Action::Move { direction } => match direction {
-                Direction::Up => self.robot.position += IVec2::new(0, -1),
-                Direction::Down => self.robot.position += IVec2::new(0, 1),
-                Direction::Left => self.robot.position += IVec2::new(-1, 0),
-                Direction::Right => self.robot.position += IVec2::new(1, 0),
-            },
-            Action::Wait => {}
-        }
 
         // Check if end condition reached and set state accordingly
         self.state = if self.robot.position == self.goal_position {
@@ -187,7 +177,7 @@ impl Display for SimulationEnvironment {
                 } else {
                     match self.map.get_tile(IVec2::new(x as i32, y as i32)) {
                         Tile::IMPASSABLE => output.push('W'),
-                        Tile::CLEAN => output.push('C'),
+                        Tile::CLEAN => output.push('.'),
                         Tile::DIRTY => output.push('D'),
                         Tile::TARGET => output.push('T'),
                     }
@@ -212,6 +202,15 @@ fn main() {
 
     for _ in 0..100 {
         env.run();
-        println!("{}\nstate:{:?}", env, env.get_state());
+        println!(
+            "{}\nstate:{:?}\nRobot: {} Goal: {}",
+            env,
+            env.get_state(),
+            env.robot.position,
+            env.goal_position
+        );
+        if env.get_state().0 == EnvironmentState::END {
+            return;
+        }
     }
 }

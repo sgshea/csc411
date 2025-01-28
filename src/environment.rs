@@ -7,7 +7,7 @@ use crate::{agent::Agent, map::Map};
 // Simple state enum for the environment
 // Run indicates that the environment ran the last turn
 // End indicates that the environment has reached a finishing state
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EnvironmentState {
     START,
     RUN,

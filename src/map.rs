@@ -128,7 +128,7 @@ impl Map {
         for direction in Direction::all() {
             let neighbor_pos = pos + direction.to_ivec2();
             if self.in_bounds(neighbor_pos) {
-                neighbors.insert(neighbor_pos, (direction, &self.tiles[neighbor_pos.y as usize][neighbor_pos.x as usize]));
+                neighbors.insert(neighbor_pos, (direction, self.get_tile(neighbor_pos)));
             }
         }
         neighbors
