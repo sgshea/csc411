@@ -1,4 +1,9 @@
-use std::{collections::HashMap, fmt::Display, fs::File, io::{BufRead, BufReader, ErrorKind}};
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    fs::File,
+    io::{BufRead, BufReader, ErrorKind},
+};
 
 use glam::IVec2;
 
@@ -20,16 +25,12 @@ pub enum Tile {
 #[derive(Clone)]
 pub struct Map {
     tiles: Vec<Vec<Tile>>,
-    pub width: usize,
-    pub height: usize,
 }
 
 impl Map {
     pub fn new(width: usize, height: usize) -> Self {
         let map = Map {
             tiles: vec![vec![Tile::default(); width]; height],
-            width,
-            height,
         };
 
         map
@@ -56,23 +57,11 @@ impl Map {
             ));
         }
 
-        // Determine width from the first line
-        let width = lines[0].len();
-        // Check that all lines have the same length as the first line
-        for line in &lines[1..] {
-            if line.len() != width {
-                return Err(std::io::Error::new(
-                    ErrorKind::Other,
-                    "All lines must be of the same length.",
-                ));
-            }
-        }
-
         let height = lines.len();
         let mut tiles = Vec::with_capacity(height);
 
         for line in lines {
-            let mut row: Vec<Tile> = Vec::with_capacity(width);
+            let mut row: Vec<Tile> = Vec::with_capacity(line.len());
             for c in line.chars() {
                 match c {
                     'C' => row.push(Tile::CLEAN),
@@ -90,36 +79,43 @@ impl Map {
             tiles.push(row);
         }
 
-        Ok(Map {
-            tiles,
-            width,
-            height,
-        })
+        Ok(Map { tiles })
     }
 
-    pub fn in_bounds(&self, pos: IVec2) -> bool {
-        pos.x >= 0 && pos.x < self.width as i32 && pos.y >= 0 && pos.y < self.height as i32
+    pub fn has_tile(&self, pos: IVec2) -> bool {
+        self.tiles
+            .get(pos.y as usize)
+            .and_then(|row| row.get(pos.x as usize))
+            .is_some()
     }
 
-    pub fn get_tile(&self, pos: IVec2) -> &Tile {
-        &self.tiles[pos.y as usize][pos.x as usize]
+    pub fn get_tile(&self, pos: IVec2) -> Option<&Tile> {
+        self.tiles.get(pos.y as usize)?.get(pos.x as usize)
     }
 
     pub fn get_tile_mut(&mut self, pos: IVec2) -> &mut Tile {
         &mut self.tiles[pos.y as usize][pos.x as usize]
     }
 
+    pub fn get_tile_iterator(&self) -> impl Iterator<Item = (IVec2, &Tile)> {
+        self.tiles.iter().enumerate().flat_map(|(y, row)| {
+            row.iter()
+                .enumerate()
+                .map(move |(x, tile)| (IVec2::new(x as i32, y as i32), tile))
+        })
+    }
+
+    pub fn get_line_iterator(&self) -> impl Iterator<Item = Vec<(IVec2, &Tile)>> {
+        self.tiles.iter().enumerate().map(|(y, row)| {
+            row.iter().enumerate().map(move |(x, tile)| {
+                (IVec2::new(x as i32, y as i32), tile)
+            }).collect::<Vec<_>>()
+        })
+    }
+
     // Gets all of the tiles of a certain type
     pub fn get_all_of_type(&self, tile_type: Tile) -> HashMap<IVec2, &Tile> {
-        let mut tiles_map = HashMap::new();
-        for y in 0..self.height {
-            for x in 0..self.width {
-                if self.tiles[y as usize][x as usize] == tile_type {
-                    tiles_map.insert(IVec2::new(x as i32, y as i32), &self.tiles[y][x]);
-                }
-            }
-        }
-        tiles_map
+        self.get_tile_iterator().filter(|&(_, tile)| tile == &tile_type).collect()
     }
 
     // Returns neighbors of a given tile
@@ -127,8 +123,9 @@ impl Map {
         let mut neighbors = HashMap::new();
         for direction in Direction::all() {
             let neighbor_pos = pos + direction.to_ivec2();
-            if self.in_bounds(neighbor_pos) {
-                neighbors.insert(neighbor_pos, (direction, self.get_tile(neighbor_pos)));
+
+            if let Some(tile) = self.get_tile(neighbor_pos) {
+                neighbors.insert(neighbor_pos, (direction, tile));
             }
         }
         neighbors

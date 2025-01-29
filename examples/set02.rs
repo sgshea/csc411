@@ -169,22 +169,21 @@ impl Display for SimulationEnvironment {
     // Displays agent on top of map
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut output = String::new();
-        for y in 0..self.map.height {
-            for x in 0..self.map.width {
-                if self.robot.position == IVec2::new(x as i32, y as i32) {
+        self.map.get_line_iterator().enumerate().for_each(|(_, line)| {
+            line.iter().enumerate().for_each(|(_, (pos, tile))| {
+                if &self.robot.position == pos {
                     output.push_str(&self.robot.get_symbol());
-                    continue;
                 } else {
-                    match self.map.get_tile(IVec2::new(x as i32, y as i32)) {
+                    match tile {
                         Tile::IMPASSABLE => output.push('W'),
                         Tile::CLEAN => output.push('.'),
                         Tile::DIRTY => output.push('D'),
                         Tile::TARGET => output.push('T'),
                     }
                 }
-            }
+            });
             output.push('\n');
-        }
+        });
         write!(f, "{}", output)
     }
 }
